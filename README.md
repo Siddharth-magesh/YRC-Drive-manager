@@ -57,8 +57,8 @@ Before setting up and running the script, ensure you have the following:
 First, clone this repository to your local machine using Git. If you don't have Git installed, download it from [here](https://git-scm.com/downloads).
 
 ```bash
-git clone https://github.com/your-username/google-drive-content-processor.git
-cd google-drive-content-processor
+git clone https://github.com/Siddharth-magesh/YRC-Drive-manager.git
+cd YRC-Drive-manager
 ```
 
 _Replace `your-username` with your actual GitHub username if applicable._
