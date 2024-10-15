@@ -1,6 +1,7 @@
+````markdown
 # Google Drive Content Processor
 
-A Python-based tool to automate the transfer of images and videos between folders within the same Google Drive account. This script downloads all images and videos from a specified source folder and uploads them to a target folder, streamlining the organization and management of your Google Drive content.
+A Python-based tool to automate the transfer of images and videos between folders within the same Google Drive account. This script downloads all images and videos from a specified source folder and uploads them to a target folder, streamlining the organization and management of your Google Drive content. Additionally, it handles large files by segregating them into a separate folder for manual verification and uploading.
 
 ## Table of Contents
 
@@ -17,8 +18,12 @@ A Python-based tool to automate the transfer of images and videos between folder
     - [Target Folder ID](#target-folder-id)
     - [Credentials File Path](#credentials-file-path)
     - [Download Path](#download-path)
+    - [Large Files Path](#large-files-path)
+    - [Size Threshold](#size-threshold)
+    - [Cleanup Configuration](#cleanup-configuration)
 - [Usage](#usage)
-  - [Running the Script](#running-the-script)
+  - [Running the Main Script (`process_content.py`)](#running-the-main-script-process_contentpy)
+  - [Handling Large Files (`upload_large_files.py`)](#handling-large-files-upload_large_filespy)
 - [Folder Structure](#folder-structure)
 - [Error Handling](#error-handling)
 - [Cleanup](#cleanup)
@@ -32,7 +37,9 @@ A Python-based tool to automate the transfer of images and videos between folder
 ## Features
 
 - **Automated File Transfer:** Seamlessly download and upload images and videos between Google Drive folders.
+- **Large File Handling:** Automatically segregate files exceeding a specified size threshold into a separate folder for manual verification and uploading.
 - **Structured Configuration:** Easily manage settings through a dedicated `config.py` file.
+- **Styled Terminal Output:** Enhanced print statements with colors and symbols for better readability and professionalism.
 - **Error Handling:** Comprehensive try-except blocks to handle potential issues gracefully.
 - **Progress Feedback:** Informative print statements to monitor the script's progress.
 - **Environment Management:** Utilize Conda to manage dependencies and maintain a consistent Python environment.
@@ -47,6 +54,7 @@ Before setting up and running the script, ensure you have the following:
 - **Anaconda:** To create and manage the Conda environment.
 - **Google Account:** Access to Google Drive.
 - **Internet Connection:** Required for accessing Google Drive APIs.
+- **`colorama` Library:** For styled terminal outputs.
 
 ---
 
@@ -60,6 +68,7 @@ First, clone this repository to your local machine using Git. If you don't have 
 git clone https://github.com/Siddharth-magesh/YRC-Drive-manager.git
 cd YRC-Drive-manager
 ```
+````
 
 _Replace `your-username` with your actual GitHub username if applicable._
 
@@ -88,10 +97,10 @@ It's recommended to use Conda to manage the Python environment for this project.
 With the Conda environment activated, install the necessary Python libraries using `pip`:
 
 ```bash
-pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+pip install -r requirements.txt
 ```
 
-_These libraries are essential for interacting with the Google Drive API._
+_These libraries are essential for interacting with the Google Drive API and enhancing terminal outputs._
 
 ---
 
@@ -108,7 +117,7 @@ To interact with Google Drive, you need OAuth 2.0 credentials. Instead of settin
   - **Name:** Siddharth Magesh
   - **Email:** [siddharthmagesh007@gmail.com](mailto:siddharthmagesh007@gmail.com)
 
-  - **Name:** tarakesh
+  - **Name:** Tarakesh
   - **Email:** [siddharthmagesh007@gmail.com](mailto:siddharthmagesh007@gmail.com)
 
 **Steps:**
@@ -166,6 +175,38 @@ The `config.py` file holds all the configuration parameters required by the scri
   download_path = './downloaded_files'
   ```
 
+#### Large Files Path
+
+- **Description:** The local directory where files exceeding the size threshold will be stored for later upload.
+- **How to Set:**
+  Specify a directory where you want to store large files. By default, it's set to `./large_files`.
+  ```python
+  large_files_path = './large_files'
+  ```
+
+#### Size Threshold
+
+- **Description:** The maximum file size (in bytes) allowed for immediate upload. Files exceeding this size will be moved to the `large_files_path`.
+- **How to Set:**
+  The default is set to 300 KB. You can modify this value as needed.
+  ```python
+  size_threshold = 1 * 1024 * 1024 * 1024 # 1 GB
+  ```
+
+#### Cleanup Configuration
+
+- **Description:** Determines whether to delete local directories after uploading.
+- **Parameters:**
+
+  - `clean_up_large_files_after_uploading`: If set to `True`, the script will delete the `large_files` directory after successfully uploading its contents.
+  - `clean_up_downloaded_files_after_uploading`: If set to `True`, the script will delete the `downloaded_files` directory after successfully uploading its contents.
+
+- **How to Set:**
+  ```python
+  clean_up_large_files_after_uploading = True
+  clean_up_downloaded_files_after_uploading = True
+  ```
+
 #### Complete `config.py` Example
 
 ```python
@@ -191,6 +232,22 @@ cred_file_path = 'credentials.json'
 # Download Path:
 # The local directory where downloaded files will be temporarily stored before uploading.
 download_path = './downloaded_files'
+
+# Large Files Path:
+# The local directory where files exceeding the size threshold will be stored for later upload.
+# Ensure that this directory exists or the script has permission to create it.
+large_files_path = './large_files'
+
+# Size Threshold:
+# The maximum file size (in bytes) allowed for immediate upload.
+# Files exceeding this size will be moved to the large_files_path.
+# Default is set to 300 KB. You can modify this value as needed.
+size_threshold = 1 * 1024 * 1024 * 1024 # 1 GB
+
+# Cleanup Configuration:
+# Determines whether to delete local directories after uploading.
+clean_up_large_files_after_uploading = True
+clean_up_downloaded_files_after_uploading = True
 ```
 
 **Important:** Replace `'your_source_folder_id_here'` and `'your_target_folder_id_here'` with your actual Google Drive Folder IDs.
@@ -199,9 +256,9 @@ download_path = './downloaded_files'
 
 ## Usage
 
-With the environment set up and configurations in place, you can now run the script to transfer files between Google Drive folders.
+With the environment set up and configurations in place, you can now run the scripts to transfer files between Google Drive folders.
 
-### Running the Script
+### Running the Main Script (`process_content.py`)
 
 1. **Activate Conda Environment:**
 
@@ -227,38 +284,76 @@ With the environment set up and configurations in place, you can now run the scr
 
 4. **Monitor the Output:**
 
-   The script will print messages indicating the progress of downloading and uploading files, as well as any errors encountered.
+   The script will print styled messages indicating the progress of downloading and uploading files, as well as any errors encountered.
 
 5. **Completion:**
 
-   Once the process is complete, the script will clean up the downloaded files from the local `downloaded_files` directory.
+   Once the process is complete, the script will conditionally clean up the `downloaded_files` directory based on your `config.py` settings.
+
+### Handling Large Files (`upload_large_files.py`)
+
+After running the main script, any files exceeding the specified `size_threshold` will be downloaded to the `large_files` directory. To upload these large files:
+
+1. **Verify Large Files:**
+
+   - Navigate to the `large_files` directory.
+   - Manually verify whether each large file is necessary for upload.
+
+2. **Run the Upload Large Files Script:**
+
+   Execute the `upload_large_files.py` script using Python:
+
+   ```bash
+   python upload_large_files.py
+   ```
+
+3. **Authenticate with Google Drive (If Needed):**
+
+   - If not already authenticated, a browser window will open for authorization.
+   - Log in and grant permissions as prompted.
+
+4. **Monitor the Output:**
+
+   The script will print styled messages indicating the progress of uploading large files.
+
+5. **Completion and Cleanup:**
+
+   - After successful uploads, the script will conditionally delete the `large_files` directory based on your `config.py` settings.
+   - Ensure that all necessary files have been uploaded before allowing the script to delete the directory to prevent accidental data loss.
 
 ---
 
 ## Folder Structure
 
-Here's an overview of the project's folder structure:
+Here's an overview of the project's folder structure after the updates:
 
 ```
-google-drive-content-processor/
+YRC-Drive-manager/
 │
 ├── config.py
 ├── process_content.py
+├── upload_large_files.py
 ├── credentials.json
 ├── token.json
 ├── downloaded_files/          # Created automatically during script execution
 │   ├── image1.jpg
 │   ├── video1.mp4
 │   └── ... (other downloaded images and videos)
+├── large_files/               # Created automatically during script execution
+│   ├── large_image1.jpg
+│   ├── large_video1.mp4
+│   └── ... (other large files)
 ├── README.md
 └── environment.yml            # (Optional) If using Conda environment file
 ```
 
-- **config.py:** Stores configuration parameters such as folder IDs and credential paths.
+- **config.py:** Stores configuration parameters such as folder IDs, credential paths, download paths, size thresholds, and cleanup settings.
 - **process_content.py:** The main script that handles downloading and uploading of files.
+- **upload_large_files.py:** Script to upload large files stored in the `large_files` directory.
 - **credentials.json:** Google Drive API credentials file (provided by Technical YRC lead).
 - **token.json:** Stores authentication tokens after the first run.
 - **downloaded_files/:** Temporary directory where files are downloaded before uploading.
+- **large_files/:** Directory where large files are stored for manual verification and later upload.
 - **README.md:** Documentation and instructions (this file).
 - **environment.yml:** (Optional) For sharing the Conda environment configuration.
 
@@ -276,6 +371,10 @@ The script includes comprehensive error handling to manage potential issues grac
   - The script handles network interruptions during download and upload processes, printing relevant error messages.
 - **File Access Issues:**
   - If the script lacks permissions to create directories or write files locally, it will inform you and exit.
+- **Unsupported MIME Types:**
+  - Files that are neither images nor videos are skipped with a warning message.
+- **Size Threshold Handling:**
+  - Files exceeding the `size_threshold` are moved to the `large_files` directory with appropriate notifications.
 
 **Note:** Always monitor the script's output to identify and address any issues promptly.
 
@@ -283,7 +382,16 @@ The script includes comprehensive error handling to manage potential issues grac
 
 ## Cleanup
 
-After successfully transferring files, the script performs a cleanup by deleting the local `downloaded_files` directory to free up space. If you wish to retain the downloaded files for any reason, you can modify or remove the cleanup function in `process_content.py`.
+The scripts perform cleanup operations based on your configuration settings:
+
+- **`process_content.py`:**
+
+  - **`clean_up_downloaded_files_after_uploading`:** If set to `True`, deletes the `downloaded_files` directory after uploading regular files.
+
+- **`upload_large_files.py`:**
+  - **`clean_up_large_files_after_uploading`:** If set to `True`, deletes the `large_files` directory after uploading large files.
+
+**Important:** Ensure that all necessary files have been successfully uploaded before allowing the scripts to delete the directories to prevent accidental data loss.
 
 ---
 
@@ -321,8 +429,8 @@ Here are some common issues and their solutions:
 
 - **Symptom:** The script cannot create directories or write files locally.
 - **Solution:**
-  - Verify that you have the necessary permissions for the specified `download_path`.
-  - Choose a different directory where you have write access.
+  - Verify that you have the necessary permissions for the specified `download_path` and `large_files_path`.
+  - Choose different directories where you have write access.
 
 ### 4. **API Quota Exceeded**
 
@@ -338,6 +446,13 @@ Here are some common issues and their solutions:
   - Check the terminal output for error messages.
   - Ensure that all dependencies are correctly installed and that the Conda environment is active.
 
+### 6. **Styled Output Not Displaying Correctly**
+
+- **Symptom:** Colored and styled print statements are not appearing as expected in the terminal.
+- **Solution:**
+  - Ensure that the `colorama` library is installed.
+  - Some terminals may not support ANSI escape codes fully. Try using a different terminal emulator.
+
 ---
 
 ## License
@@ -349,9 +464,9 @@ This project is licensed under the [MIT License](LICENSE).
 ## Acknowledgements
 
 - **Google Drive API:** Thanks to the developers of the Google Drive API for providing comprehensive tools to interact with Google Drive programmatically.
-- **OpenAI:** For providing the language model that assisted in developing this project.
 - **Conda Community:** For creating and maintaining the Conda environment management system.
+- **Colorama Library:** For enabling easy styling of terminal outputs.
 
 ---
 
-Feel free to reach out to the Technical YRC lead at [siddharthmagesh007@gmail.com](mailto:siddharthmagesh007@gmail.com) if you encounter any issues or have suggestions for improvements!
+Feel free to reach out to the Technical YRC leads at [siddharthmagesh007@gmail.com](mailto:siddharthmagesh007@gmail.com) if you encounter any issues or have suggestions for improvements!
