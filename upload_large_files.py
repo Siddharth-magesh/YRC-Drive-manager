@@ -1,11 +1,11 @@
-# process_content.py
+# upload_large_files.py
 
 import os
 import io
 import shutil
 import sys
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -53,75 +53,6 @@ def authenticate_drive(creds_file):
         print(Fore.RED + f"✖ An error occurred during authentication: {e}")
         sys.exit(1)
 
-def download_images_videos(service, folder_id, download_path, large_files_path, size_threshold):
-    """
-    Downloads all images and videos from the specified Google Drive folder.
-    Files exceeding the size_threshold are downloaded to large_files_path instead of download_path.
-
-    Parameters:
-        service: Authorized Google Drive service instance.
-        folder_id (str): ID of the source Google Drive folder.
-        download_path (str): Local path to save downloaded files.
-        large_files_path (str): Local path to save large files.
-        size_threshold (int): Maximum file size in bytes for immediate upload.
-    """
-    try:
-        query = f"'{folder_id}' in parents and (mimeType contains 'image/' or mimeType contains 'video/') and trashed=false"
-        print(Fore.CYAN + "🔍 Searching for images and videos in the source folder...")
-        results = service.files().list(q=query, fields="files(id, name, mimeType, size)").execute()
-        items = results.get('files', [])
-
-        if not items:
-            print(Fore.YELLOW + "⚠ No image or video files found in the source folder.\n")
-            return
-
-        print(Fore.CYAN + f"📂 Found {len(items)} files to process.\n")
-        for item in items:
-            file_id = item['id']
-            file_name = item['name']
-            mime_type = item['mimeType']
-            file_size = int(item.get('size', 0))  # size is in bytes
-
-            if file_size > size_threshold:
-                # Move to large_files_path
-                large_file_path = os.path.join(large_files_path, file_name)
-                print(Fore.MAGENTA + f"📁 File '{file_name}' exceeds the size threshold ({file_size} bytes). Moving to 'large_files' folder.")
-                try:
-                    request = service.files().get_media(fileId=file_id)
-                    fh = io.FileIO(large_file_path, 'wb')
-                    downloader = MediaIoBaseDownload(fh, request)
-
-                    done = False
-                    print(Fore.MAGENTA + f"⏳ Starting download of large file '{file_name}'...")
-                    while not done:
-                        status, done = downloader.next_chunk()
-                        if status:
-                            print(Fore.MAGENTA + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
-                    print(Fore.GREEN + f"✔ Successfully downloaded large file '{file_name}' to '{large_files_path}'.\n")
-                except Exception as e:
-                    print(Fore.RED + f"✖ Failed to download large file '{file_name}': {e}\n")
-                continue  # Skip uploading this file now
-
-            # Download to download_path
-            file_path = os.path.join(download_path, file_name)
-            try:
-                request = service.files().get_media(fileId=file_id)
-                fh = io.FileIO(file_path, 'wb')
-                downloader = MediaIoBaseDownload(fh, request)
-
-                done = False
-                print(Fore.BLUE + f"⏳ Starting download of '{file_name}'...")
-                while not done:
-                    status, done = downloader.next_chunk()
-                    if status:
-                        print(Fore.BLUE + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
-                print(Fore.GREEN + f"✔ Successfully downloaded '{file_name}'.\n")
-            except Exception as e:
-                print(Fore.RED + f"✖ Failed to download '{file_name}': {e}\n")
-    except Exception as e:
-        print(Fore.RED + f"✖ An error occurred while listing or downloading files: {e}\n")
-        sys.exit(1)
-
 def create_subfolders(service, parent_folder_id, subfolder_names):
     """
     Creates subfolders inside the parent folder if they do not already exist.
@@ -160,29 +91,29 @@ def create_subfolders(service, parent_folder_id, subfolder_names):
     print()  # Add a newline for better readability
     return subfolder_ids
 
-def upload_to_drive(service, upload_folder_id, upload_path):
+def upload_large_files(service, upload_folder_id, large_files_path):
     """
-    Uploads all files from the specified local directory to the target Google Drive folder,
+    Uploads all files from the large_files_path to the target Google Drive folder,
     organizing images and videos into separate subfolders.
 
     Parameters:
         service: Authorized Google Drive service instance.
         upload_folder_id (str): ID of the target Google Drive folder.
-        upload_path (str): Local path where files are stored to be uploaded.
+        large_files_path (str): Local path where large files are stored to be uploaded.
     """
     try:
         # Create subfolders 'images' and 'videos' inside the target folder
         subfolders = ['images', 'videos']
         subfolder_ids = create_subfolders(service, upload_folder_id, subfolders)
 
-        files = os.listdir(upload_path)
+        files = os.listdir(large_files_path)
         if not files:
-            print(Fore.YELLOW + "⚠ No files available to upload.\n")
+            print(Fore.YELLOW + "⚠ No large files available to upload.\n")
             return
 
-        print(Fore.CYAN + f"📤 Starting upload of {len(files)} files to folder ID: {upload_folder_id}\n")
+        print(Fore.CYAN + f"📤 Starting upload of {len(files)} large files to folder ID: {upload_folder_id}\n")
         for file_name in files:
-            file_path = os.path.join(upload_path, file_name)
+            file_path = os.path.join(large_files_path, file_name)
             mime_type = get_mime_type(file_path)
 
             if mime_type is None:
@@ -212,7 +143,7 @@ def upload_to_drive(service, upload_folder_id, upload_path):
             except Exception as e:
                 print(Fore.RED + f"✖ Failed to upload '{file_name}': {e}\n")
     except Exception as e:
-        print(Fore.RED + f"✖ An error occurred while uploading files: {e}\n")
+        print(Fore.RED + f"✖ An error occurred while uploading large files: {e}\n")
         sys.exit(1)
 
 def get_mime_type(file_path):
@@ -229,70 +160,52 @@ def get_mime_type(file_path):
     mime_type, _ = mimetypes.guess_type(file_path)
     return mime_type
 
-def clean_up(download_path):
+def clean_up(large_files_path):
     """
-    Deletes the local download directory and its contents.
-    
+    Deletes the local large_files directory and its contents.
+
     Parameters:
-        download_path (str): Path to the local download directory.
+        large_files_path (str): Path to the local large_files directory.
     """
     try:
-        if os.path.exists(download_path):
-            shutil.rmtree(download_path)
-            print(Fore.GREEN + f"✔ Cleaned up the local directory '{download_path}'.\n")
+        if os.path.exists(large_files_path):
+            shutil.rmtree(large_files_path)
+            print(Fore.GREEN + f"✔ Cleaned up the local directory '{large_files_path}'.\n")
     except Exception as e:
         print(Fore.RED + f"✖ An error occurred during cleanup: {e}\n")
 
 def main():
     """
-    Main function to orchestrate the download and upload of images and videos within Google Drive.
+    Main function to upload large files from local large_files directory to Google Drive
+    and clean up the local directory after successful upload.
     """
     print(Fore.MAGENTA + "="*50)
-    print(Fore.MAGENTA + "    Google Drive Content Processor Started")
+    print(Fore.MAGENTA + "    Upload Large Files Process Started")
     print(Fore.MAGENTA + "="*50 + "\n")
-
-    # Ensure the download directory exists
-    if not os.path.exists(config.download_path):
-        try:
-            os.makedirs(config.download_path)
-            print(Fore.GREEN + f"✔ Created download directory at '{config.download_path}'.\n")
-        except Exception as e:
-            print(Fore.RED + f"✖ Failed to create download directory '{config.download_path}': {e}\n")
-            sys.exit(1)
-    else:
-        print(Fore.BLUE + f"📁 Download directory '{config.download_path}' already exists.\n")
 
     # Ensure the large_files directory exists
     if not os.path.exists(config.large_files_path):
-        try:
-            os.makedirs(config.large_files_path)
-            print(Fore.GREEN + f"✔ Created large files directory at '{config.large_files_path}'.\n")
-        except Exception as e:
-            print(Fore.RED + f"✖ Failed to create large files directory '{config.large_files_path}': {e}\n")
-            sys.exit(1)
+        print(Fore.YELLOW + f"⚠ Large files directory '{config.large_files_path}' does not exist. Nothing to upload.\n")
+        sys.exit(0)
     else:
-        print(Fore.BLUE + f"📁 Large files directory '{config.large_files_path}' already exists.\n")
+        print(Fore.BLUE + f"📁 Large files directory '{config.large_files_path}' found.\n")
 
     # Authenticate and build the Google Drive service
     service = authenticate_drive(config.cred_file_path)
 
-    # Download images and videos from the source folder
-    print(Fore.MAGENTA + "🔽 Initiating download process...\n")
-    download_images_videos(service, config.source_folder_id, config.download_path, config.large_files_path, config.size_threshold)
+    # Upload the large files to target folder
+    print(Fore.MAGENTA + "🔼 Initiating upload of large files...\n")
+    upload_large_files(service, config.target_folder_id, config.large_files_path)
 
-    # Upload the downloaded files to target folder
-    print(Fore.MAGENTA + "🔼 Initiating upload process...\n")
-    upload_to_drive(service, config.target_folder_id, config.download_path)
-
-    # Conditionally clean up the downloaded_files directory
-    if config.clean_up_downloaded_files_after_uploading:
-        print(Fore.MAGENTA + "🧹 Cleaning up downloaded files...\n")
-        clean_up(config.download_path)
+    # Conditionally clean up the large_files directory
+    if config.clean_up_large_files_after_uploading:
+        print(Fore.MAGENTA + "🧹 Cleaning up large files...\n")
+        clean_up(config.large_files_path)
     else:
-        print(Fore.YELLOW + "⚠ Skipping cleanup of downloaded files as per configuration.\n")
+        print(Fore.YELLOW + "⚠ Skipping cleanup of large files as per configuration.\n")
 
     print(Fore.MAGENTA + "="*50)
-    print(Fore.MAGENTA + "    Google Drive Content Processor Completed Successfully")
+    print(Fore.MAGENTA + "    Upload Large Files Process Completed Successfully")
     print(Fore.MAGENTA + "="*50 + "\n")
 
 if __name__ == '__main__':
