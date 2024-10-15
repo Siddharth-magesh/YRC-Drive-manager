@@ -1,4 +1,3 @@
-````markdown
 # Google Drive Content Processor
 
 A Python-based tool to automate the transfer of images and videos between folders within the same Google Drive account. This script downloads all images and videos from a specified source folder and uploads them to a target folder, streamlining the organization and management of your Google Drive content. Additionally, it handles large files by segregating them into a separate folder for manual verification and uploading.
@@ -68,7 +67,7 @@ First, clone this repository to your local machine using Git. If you don't have 
 git clone https://github.com/Siddharth-magesh/YRC-Drive-manager.git
 cd YRC-Drive-manager
 ```
-````
+
 
 _Replace `your-username` with your actual GitHub username if applicable._
 
