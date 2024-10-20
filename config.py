@@ -15,7 +15,7 @@ target_folder_id = 'your_target_folder_id_here'
 # Credentials File Path:
 # The path to your Google Drive API credentials JSON file.
 # Ensure this file is kept secure and not exposed publicly.
-cred_file_path = 'credentials.json'
+cred_file_path = r'credentials_path.json'
 
 # Download Path:
 # The local directory where downloaded files will be temporarily stored before uploading.

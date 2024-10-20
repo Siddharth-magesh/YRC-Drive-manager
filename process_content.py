@@ -66,61 +66,75 @@ def download_images_videos(service, folder_id, download_path, large_files_path, 
         size_threshold (int): Maximum file size in bytes for immediate upload.
     """
     try:
-        query = f"'{folder_id}' in parents and (mimeType contains 'image/' or mimeType contains 'video/') and trashed=false"
-        print(Fore.CYAN + "🔍 Searching for images and videos in the source folder...")
-        results = service.files().list(q=query, fields="files(id, name, mimeType, size)").execute()
-        items = results.get('files', [])
+        page_token = None
+        while True:
+            query = f"'{folder_id}' in parents and (mimeType contains 'image/' or mimeType contains 'video/') and trashed=false"
+            print(Fore.CYAN + "🔍 Searching for images and videos in the source folder...")
+            
+            # Get files and handle pagination
+            results = service.files().list(
+                q=query, 
+                fields="nextPageToken, files(id, name, mimeType, size)", 
+                pageToken=page_token
+            ).execute()
+            items = results.get('files', [])
 
-        if not items:
-            print(Fore.YELLOW + "⚠ No image or video files found in the source folder.\n")
-            return
+            if not items:
+                print(Fore.YELLOW + "⚠ No more image or video files found in the source folder.\n")
+                break
 
-        print(Fore.CYAN + f"📂 Found {len(items)} files to process.\n")
-        for item in items:
-            file_id = item['id']
-            file_name = item['name']
-            mime_type = item['mimeType']
-            file_size = int(item.get('size', 0))  # size is in bytes
+            print(Fore.CYAN + f"📂 Found {len(items)} files to process.\n")
+            for item in items:
+                file_id = item['id']
+                file_name = item['name']
+                mime_type = item['mimeType']
+                file_size = int(item.get('size', 0))  # size is in bytes
 
-            if file_size > size_threshold:
-                # Move to large_files_path
-                large_file_path = os.path.join(large_files_path, file_name)
-                print(Fore.MAGENTA + f"📁 File '{file_name}' exceeds the size threshold ({file_size} bytes). Moving to 'large_files' folder.")
+                if file_size > size_threshold:
+                    # Move to large_files_path
+                    large_file_path = os.path.join(large_files_path, file_name)
+                    print(Fore.MAGENTA + f"📁 File '{file_name}' exceeds the size threshold ({file_size} bytes). Moving to 'large_files' folder.")
+                    try:
+                        request = service.files().get_media(fileId=file_id)
+                        fh = io.FileIO(large_file_path, 'wb')
+                        downloader = MediaIoBaseDownload(fh, request)
+
+                        done = False
+                        print(Fore.MAGENTA + f"⏳ Starting download of large file '{file_name}'...")
+                        while not done:
+                            status, done = downloader.next_chunk()
+                            if status:
+                                print(Fore.MAGENTA + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
+                        print(Fore.GREEN + f"✔ Successfully downloaded large file '{file_name}' to '{large_files_path}'.\n")
+                    except Exception as e:
+                        print(Fore.RED + f"✖ Failed to download large file '{file_name}': {e}\n")
+                    continue  # Skip uploading this file now
+
+                # Download to download_path
+                file_path = os.path.join(download_path, file_name)
                 try:
                     request = service.files().get_media(fileId=file_id)
-                    fh = io.FileIO(large_file_path, 'wb')
+                    fh = io.FileIO(file_path, 'wb')
                     downloader = MediaIoBaseDownload(fh, request)
 
                     done = False
-                    print(Fore.MAGENTA + f"⏳ Starting download of large file '{file_name}'...")
+                    print(Fore.BLUE + f"⏳ Starting download of '{file_name}'...")
                     while not done:
                         status, done = downloader.next_chunk()
                         if status:
-                            print(Fore.MAGENTA + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
-                    print(Fore.GREEN + f"✔ Successfully downloaded large file '{file_name}' to '{large_files_path}'.\n")
+                            print(Fore.BLUE + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
+                    print(Fore.GREEN + f"✔ Successfully downloaded '{file_name}'.\n")
                 except Exception as e:
-                    print(Fore.RED + f"✖ Failed to download large file '{file_name}': {e}\n")
-                continue  # Skip uploading this file now
-
-            # Download to download_path
-            file_path = os.path.join(download_path, file_name)
-            try:
-                request = service.files().get_media(fileId=file_id)
-                fh = io.FileIO(file_path, 'wb')
-                downloader = MediaIoBaseDownload(fh, request)
-
-                done = False
-                print(Fore.BLUE + f"⏳ Starting download of '{file_name}'...")
-                while not done:
-                    status, done = downloader.next_chunk()
-                    if status:
-                        print(Fore.BLUE + f"🔄 Downloading '{file_name}': {int(status.progress() * 100)}%")
-                print(Fore.GREEN + f"✔ Successfully downloaded '{file_name}'.\n")
-            except Exception as e:
-                print(Fore.RED + f"✖ Failed to download '{file_name}': {e}\n")
+                    print(Fore.RED + f"✖ Failed to download '{file_name}': {e}\n")
+            
+            # Check if there is another page of results
+            page_token = results.get('nextPageToken')
+            if not page_token:
+                break  # No more pages, exit the loop
     except Exception as e:
         print(Fore.RED + f"✖ An error occurred while listing or downloading files: {e}\n")
         sys.exit(1)
+
 
 def create_subfolders(service, parent_folder_id, subfolder_names):
     """
