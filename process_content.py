@@ -11,6 +11,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import config
 from colorama import init, Fore, Style
+from PIL import Image
+from PIL.ExifTags import TAGS
+import cv2
+import mimetypes
+
 
 # Initialize colorama
 init(autoreset=True)
@@ -174,6 +179,44 @@ def create_subfolders(service, parent_folder_id, subfolder_names):
     print()  # Add a newline for better readability
     return subfolder_ids
 
+def push_file(file_name,target_subfolder_id,subfolder_type,file_path,service):
+    try:
+        file_metadata = {
+            'name': file_name,
+            'parents': [target_subfolder_id]
+        }
+        media = MediaFileUpload(file_path, resumable=True)
+        print(Fore.BLUE + f"⏳ Uploading '{file_name}' to '{subfolder_type}' subfolder...")
+        file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        print(Fore.GREEN + f"✔ Successfully uploaded '{file_name}' with File ID: {file.get('id')}.\n")
+    except Exception as e:
+        print(Fore.RED + f"✖ Failed to upload '{file_name}': {e}\n")
+
+def group_photo_compactabilty_check(image_path, cascade_path='haarcascade_frontalface_default.xml'):
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + cascade_path)
+
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Unable to load image at {image_path}")
+        return 0
+
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    faces = face_cascade.detectMultiScale(
+        gray_image,
+        scaleFactor=1.05, 
+        minNeighbors=8,  
+        minSize=(20, 20),  
+        flags=cv2.CASCADE_SCALE_IMAGE
+    )
+
+    if len(faces) > config.group_photo_threshold_person_count:
+        print(f"Number of faces detected in {image_path}: {len(faces)}")
+        return True
+    else:
+        return False
+
+
 def upload_to_drive(service, upload_folder_id, upload_path):
     """
     Uploads all files from the specified local directory to the target Google Drive folder,
@@ -186,7 +229,7 @@ def upload_to_drive(service, upload_folder_id, upload_path):
     """
     try:
         # Create subfolders 'images' and 'videos' inside the target folder
-        subfolders = ['images', 'videos']
+        subfolders = ['images', 'videos','DSLR','GroupPhotos','geotaged']
         subfolder_ids = create_subfolders(service, upload_folder_id, subfolders)
 
         files = os.listdir(upload_path)
@@ -204,27 +247,75 @@ def upload_to_drive(service, upload_folder_id, upload_path):
                 continue
 
             # Determine target subfolder based on MIME type
+            
             if mime_type.startswith('image/'):
                 target_subfolder_id = subfolder_ids['images']
                 subfolder_type = 'images'
+                push_file(
+                    file_name=file_name,
+                    file_path=file_path,
+                    subfolder_type=subfolder_type,
+                    target_subfolder_id=target_subfolder_id,
+                    service=service
+                )
+                if 'DSC' in file_name:
+                    target_subfolder_id = subfolder_ids['DSLR']
+                    subfolder_type = 'DSLR'
+                    if group_photo_compactabilty_check(image_path=file_path):
+                        target_subfolder_id = subfolder_ids['GroupPhotos']
+                        subfolder_type = 'GroupPhotos'
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
+                    else:
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
+
+                elif 'GPS' in file_name:
+                    target_subfolder_id = subfolder_ids['geotaged']
+                    subfolder_type = 'geotaged'
+                    push_file(
+                        file_name=file_name,
+                        file_path=file_path,
+                        subfolder_type=subfolder_type,
+                        target_subfolder_id=target_subfolder_id,
+                        service=service
+                    )
+                elif group_photo_compactabilty_check(image_path=file_path):
+                    target_subfolder_id = subfolder_ids['GroupPhotos']
+                    subfolder_type = 'GroupPhotos'
+                    push_file(
+                        file_name=file_name,
+                        file_path=file_path,
+                        subfolder_type=subfolder_type,
+                        target_subfolder_id=target_subfolder_id,
+                        service=service
+                    )
+                else:
+                    pass
             elif mime_type.startswith('video/'):
                 target_subfolder_id = subfolder_ids['videos']
                 subfolder_type = 'videos'
+                push_file(
+                    file_name=file_name,
+                    file_path=file_path,
+                    subfolder_type=subfolder_type,
+                    target_subfolder_id=target_subfolder_id,
+                    service=service
+                )
             else:
                 print(Fore.YELLOW + f"⚠ Skipping '{file_name}': Unsupported MIME type '{mime_type}'.\n")
                 continue
 
-            try:
-                file_metadata = {
-                    'name': file_name,
-                    'parents': [target_subfolder_id]
-                }
-                media = MediaFileUpload(file_path, resumable=True)
-                print(Fore.BLUE + f"⏳ Uploading '{file_name}' to '{subfolder_type}' subfolder...")
-                file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-                print(Fore.GREEN + f"✔ Successfully uploaded '{file_name}' with File ID: {file.get('id')}.\n")
-            except Exception as e:
-                print(Fore.RED + f"✖ Failed to upload '{file_name}': {e}\n")
     except Exception as e:
         print(Fore.RED + f"✖ An error occurred while uploading files: {e}\n")
         sys.exit(1)
@@ -238,8 +329,7 @@ def get_mime_type(file_path):
 
     Returns:
         str or None: MIME type of the file or None if it cannot be determined.
-    """
-    import mimetypes
+    """ 
     mime_type, _ = mimetypes.guess_type(file_path)
     return mime_type
 
