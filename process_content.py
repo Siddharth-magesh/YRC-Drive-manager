@@ -249,21 +249,21 @@ def upload_to_drive(service, upload_folder_id, upload_path):
             # Determine target subfolder based on MIME type
             
             if mime_type.startswith('image/'):
-                target_subfolder_id = subfolder_ids['images']
-                subfolder_type = 'images'
-                push_file(
-                    file_name=file_name,
-                    file_path=file_path,
-                    subfolder_type=subfolder_type,
-                    target_subfolder_id=target_subfolder_id,
-                    service=service
-                )
                 if 'DSC' in file_name:
                     target_subfolder_id = subfolder_ids['DSLR']
                     subfolder_type = 'DSLR'
                     if group_photo_compactabilty_check(image_path=file_path):
                         target_subfolder_id = subfolder_ids['GroupPhotos']
                         subfolder_type = 'GroupPhotos'
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
+                        target_subfolder_id = subfolder_ids['DSLR']
+                        subfolder_type = 'DSLR'
                         push_file(
                             file_name=file_name,
                             file_path=file_path,
@@ -283,13 +283,33 @@ def upload_to_drive(service, upload_folder_id, upload_path):
                 elif 'GPS' in file_name:
                     target_subfolder_id = subfolder_ids['geotaged']
                     subfolder_type = 'geotaged'
-                    push_file(
-                        file_name=file_name,
-                        file_path=file_path,
-                        subfolder_type=subfolder_type,
-                        target_subfolder_id=target_subfolder_id,
-                        service=service
-                    )
+                    if group_photo_compactabilty_check(image_path=file_path):
+                        target_subfolder_id = subfolder_ids['GroupPhotos']
+                        subfolder_type = 'GroupPhotos'
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
+                        target_subfolder_id = subfolder_ids['geotaged']
+                        subfolder_type = 'geotaged'
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
+                    else:
+                        push_file(
+                            file_name=file_name,
+                            file_path=file_path,
+                            subfolder_type=subfolder_type,
+                            target_subfolder_id=target_subfolder_id,
+                            service=service
+                        )
                 elif group_photo_compactabilty_check(image_path=file_path):
                     target_subfolder_id = subfolder_ids['GroupPhotos']
                     subfolder_type = 'GroupPhotos'
@@ -300,8 +320,25 @@ def upload_to_drive(service, upload_folder_id, upload_path):
                         target_subfolder_id=target_subfolder_id,
                         service=service
                     )
+                    target_subfolder_id = subfolder_ids['images']
+                    subfolder_type = 'images'
+                    push_file(
+                        file_name=file_name,
+                        file_path=file_path,
+                        subfolder_type=subfolder_type,
+                        target_subfolder_id=target_subfolder_id,
+                        service=service
+                    )
                 else:
-                    pass
+                    target_subfolder_id = subfolder_ids['images']
+                    subfolder_type = 'images'
+                    push_file(
+                        file_name=file_name,
+                        file_path=file_path,
+                        subfolder_type=subfolder_type,
+                        target_subfolder_id=target_subfolder_id,
+                        service=service
+                    )
             elif mime_type.startswith('video/'):
                 target_subfolder_id = subfolder_ids['videos']
                 subfolder_type = 'videos'
@@ -346,6 +383,34 @@ def clean_up(download_path):
             print(Fore.GREEN + f"✔ Cleaned up the local directory '{download_path}'.\n")
     except Exception as e:
         print(Fore.RED + f"✖ An error occurred during cleanup: {e}\n")
+
+def check_storage(service):
+    """
+    Checks and prints the storage information of the authenticated Google Drive account.
+    
+    Parameters:
+        service: Authorized Google Drive service instance.
+    """
+    try:
+        # Get the storage quota information
+        about = service.about().get(fields="storageQuota").execute()
+        total_quota = int(about['storageQuota']['limit'])  # Total storage limit in bytes
+        used_quota = int(about['storageQuota']['usage'])   # Used storage in bytes
+        remaining_quota = total_quota - used_quota          # Remaining storage in bytes
+        
+        # Convert bytes to GB for easier readability
+        total_quota_gb = total_quota / (1024 ** 3)
+        used_quota_gb = used_quota / (1024 ** 3)
+        remaining_quota_gb = remaining_quota / (1024 ** 3)
+        
+        print(Fore.CYAN + f"Google Drive Storage Information:")
+        print(Fore.GREEN + f"Total Storage: {total_quota_gb:.2f} GB")
+        print(Fore.YELLOW + f"Used Storage: {used_quota_gb:.2f} GB")
+        print(Fore.RED + f"Remaining Storage: {remaining_quota_gb:.2f} GB")
+    
+    except Exception as e:
+        print(Fore.RED + f"✖ An error occurred while retrieving storage info: {e}")
+
 
 def main():
     """
@@ -394,6 +459,9 @@ def main():
         clean_up(config.download_path)
     else:
         print(Fore.YELLOW + "⚠ Skipping cleanup of downloaded files as per configuration.\n")
+
+    print(Fore.MAGENTA + "📊 Checking storage...\n")
+    check_storage(service)
 
     print(Fore.MAGENTA + "="*50)
     print(Fore.MAGENTA + "    Google Drive Content Processor Completed Successfully")

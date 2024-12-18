@@ -5,17 +5,17 @@
 # Source Folder ID:
 # The unique identifier of the Google Drive folder from which you want to download images and videos.
 # Obtain this from the folder's URL in your browser.
-source_folder_id = ''
+source_folder_id = '1W6RKjJLnuUauq1RD9JHyciGTfbDVakPF'
 
 # Target Folder ID:
 # The unique identifier of the Google Drive folder where you want to upload the downloaded images and videos.
 # Obtain this from the folder's URL in your browser.
-target_folder_id = ''
+target_folder_id = '1xpqkRtuXvDvj2cKyuwTyJ65e0aFgvbai'
 
 # Credentials File Path:
 # The path to your Google Drive API credentials JSON file.
 # Ensure this file is kept secure and not exposed publicly.
-cred_file_path = r'client_secret_138088727863-iokksh5iajr1m5jg7pqtdo2ckk68glt0.apps.googleusercontent.com.json'
+cred_file_path = r'D:\YRC-Drive-manager\bridge1.json'
 
 # Download Path:
 # The local directory where downloaded files will be temporarily stored before uploading.
@@ -37,4 +37,4 @@ size_threshold = 1 * 1024 * 1024 * 1024 # 1 GB
 clean_up_large_files_after_uploading = True
 clean_up_downloaded_files_after_uploading = True
 
-group_photo_threshold_person_count = 15
+group_photo_threshold_person_count = 20
